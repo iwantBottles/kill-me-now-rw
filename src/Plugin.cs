@@ -245,7 +245,7 @@ namespace SlugTemplate
             
             orig(self);
 			
-            if (wasAlive)
+            if (wasAlive && self is not Fly) // batflies are exempt so you can actually eat them
             {
 			    AbstractPhysicalObject abstractPhysicalObject = new(self.abstractCreature.Room.world, MoreSlugcatsEnums.AbstractObjectType.SingularityBomb, null, self.room.GetWorldCoordinate(self.mainBodyChunk.pos), self.abstractCreature.Room.world.game.GetNewID());
                 self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
