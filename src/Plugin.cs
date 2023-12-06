@@ -5,6 +5,7 @@ using SlugBase.Features;
 using static SlugBase.Features.FeatureTypes;
 using MoreSlugcats;
 using Random = UnityEngine.Random;
+using MonoMod.RuntimeDetour;
 
 namespace SlugTemplate
 {
@@ -13,6 +14,7 @@ namespace SlugTemplate
     {
         private const string MOD_ID = "bottles.killmenowrw";
         private const float SLUP_EXPLODE_CHANCE = 0.1f; // chance to explode when abs(slugpup food pref) = 1
+        private const float MINOR_ELEC_DEATH_AMOUNT = 0.02f; // 50% is where it becomes lethal; don't set it to that
 
         public static readonly PlayerFeature<float> SuperJump = PlayerFloat("slugtemplate/super_jump");
         public static readonly PlayerFeature<bool> ExplodeOnDeath = PlayerBool("slugtemplate/explode_on_death");
@@ -35,12 +37,18 @@ namespace SlugTemplate
 
             // Iterator related things
             On.OracleBehavior.Update += OracleBehavior_Update;
+
+            // Electric death in every room (except shelters) all throughout the cycle, but minor enough that it doesn't kill until actually time to do stuff
+            On.Room.Loaded += AddMinorElectricDeath_Hook;
+            new Hook(typeof(ElectricDeath).GetProperty(nameof(ElectricDeath.Intensity))!.GetGetMethod(), ElectricDeath_Intensity_get_Hook);
         }
 
         // Load any resources, such as sprites or sounds
         private void LoadResources(RainWorld rainWorld)
         {
         }
+
+        #region slugbase default hooks
 
         // Implement MeanLizards
         private void Lizard_ctor(On.Lizard.orig_ctor orig, Lizard self, AbstractCreature abstractCreature, World world)
@@ -91,6 +99,8 @@ namespace SlugTemplate
                 room.InGameNoise(new Noise.InGameNoise(pos, 9000f, self, 1f));
             }
         }
+
+        #endregion
 
         #region slugpup stuff
 
@@ -158,6 +168,38 @@ namespace SlugTemplate
             {
                 Application.Quit();
             }
+        }
+
+        #endregion
+
+        #region electric death stuff
+
+        private void AddMinorElectricDeath_Hook(On.Room.orig_Loaded orig, Room self)
+        {
+            orig(self);
+
+            // Check if exists
+            bool hasED = false;
+            foreach (UpdatableAndDeletable obj in self.updateList)
+            {
+                if (obj is ElectricDeath)
+                {
+                    hasED = true;
+                    (obj as ElectricDeath).effect.amount = 1f;
+                    break;
+                }
+            }
+
+            if (!hasED && !self.abstractRoom.shelter)
+            {
+                RoomSettings.RoomEffect effect = new(RoomSettings.RoomEffect.Type.ElectricDeath, 1f, false);
+                self.AddObject(new ElectricDeath(effect, self));
+            }
+        }
+        
+        private float ElectricDeath_Intensity_get_Hook(Func<ElectricDeath, float> orig, ElectricDeath self)
+        {
+            return Math.Max(MINOR_ELEC_DEATH_AMOUNT, orig(self));
         }
 
         #endregion
