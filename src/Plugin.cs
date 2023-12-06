@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using BepInEx;
 using UnityEngine;
 using SlugBase.Features;
@@ -40,9 +40,11 @@ namespace SlugTemplate
                 On.RainWorld.OnModsInit += SetUpRemixMenu;
 
                 // Put your custom hooks here!
-                On.Player.Jump += Player_Jump;
-                On.Player.Die += Player_Die;
-                On.Lizard.ctor += Lizard_ctor;
+
+                // slugbase default hooks
+                // On.Player.Jump += Player_Jump;
+               // On.Player.Die += Player_Die;
+                // On.Lizard.ctor += Lizard_ctor;
 
                 // Slugpup shenanigans :monksilly:
                 On.Player.SpitOutOfShortCut += SlupsSpawnInPipes_Hook;
