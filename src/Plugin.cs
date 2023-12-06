@@ -4,6 +4,7 @@ using UnityEngine;
 using SlugBase.Features;
 using static SlugBase.Features.FeatureTypes;
 using MoreSlugcats;
+using Random = UnityEngine.Random;
 
 namespace SlugTemplate
 {
@@ -30,59 +31,10 @@ namespace SlugTemplate
 
             // Slugpup shenanigans :monksilly:
             On.Player.SpitOutOfShortCut += SlupsSpawnInPipes_Hook;
-            On.Player.ObjectEaten += Player_ObjectEaten;
-        }
+            On.Player.ObjectEaten += SlupExplodeOnEat_Hook;
 
-        private void Player_ObjectEaten(On.Player.orig_ObjectEaten orig, Player self, IPlayerEdible edible)
-        {
-            orig(self, edible);
-
-            // Get how much slup likes or dislikes the food
-            SlugNPCAI ai = self.AI;
-            SlugNPCAI.Food foodType = ai.GetFoodType(edible as PhysicalObject);
-            float foodWeight = (foodType != SlugNPCAI.Food.NotCounted) ? ((foodType.Index == -1) ? 0f : Mathf.Abs(ai.foodPreference[foodType.Index])) : 0f;
-
-            // Decide if the slugpup explodes >:3
-            if (UnityEngine.Random.value < foodWeight * SLUP_EXPLODE_CHANCE)
-            {
-                // Adapted from Player.Die for slugpups in inv campaign (basically spawns a singularity bomb that instantly explodes)
-                AbstractPhysicalObject abstractPhysicalObject = new AbstractPhysicalObject(
-                    self.abstractCreature.Room.world,
-                    MoreSlugcatsEnums.AbstractObjectType.SingularityBomb,
-                    null,
-                    self.room.GetWorldCoordinate(self.mainBodyChunk.pos),
-                    self.abstractCreature.Room.world.game.GetNewID());
-                self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
-                abstractPhysicalObject.RealizeInRoom();
-                (abstractPhysicalObject.realizedObject as SingularityBomb).Explode();
-            }
-        }
-
-        private void SlupsSpawnInPipes_Hook(On.Player.orig_SpitOutOfShortCut orig, Player self, RWCustom.IntVector2 pos, Room newRoom, bool spitOutAllSticks)
-        {
-            orig(self, pos, newRoom, spitOutAllSticks);
-
-            if (!self.isNPC)
-            {
-                // Create slugpup and spit out of shortcut with player
-                AbstractCreature abstractCreature = new AbstractCreature(newRoom.world, StaticWorld.GetCreatureTemplate(MoreSlugcatsEnums.CreatureTemplateType.SlugNPC), null, self.abstractCreature.pos, newRoom.game.GetNewID());
-                PlayerNPCState state = (abstractCreature.state as PlayerNPCState);
-                state.foodInStomach = 1;
-                newRoom.abstractRoom.AddEntity(abstractCreature);
-                abstractCreature.RealizeInRoom();
-
-                // Make the slugpup like the player (so it will follow)
-                SocialMemory.Relationship rel = state.socialMemory.GetOrInitiateRelationship(self.abstractCreature.ID);
-                rel.InfluenceLike(1f);
-                rel.InfluenceTempLike(1f);
-                SlugNPCAbstractAI abstractAI = (abstractCreature.abstractAI as SlugNPCAbstractAI);
-                abstractAI.isTamed = true;
-                abstractAI.RealAI.friendTracker.friend = self;
-                abstractAI.RealAI.friendTracker.friendRel = rel;
-
-                // Create shockwave
-                newRoom.AddObject(new ShockWave(new Vector2(self.mainBodyChunk.pos.x, self.mainBodyChunk.pos.y), 300f, 0.2f, 15, false));
-            }
+            // Iterator related things
+            On.OracleBehavior.Update += OracleBehavior_Update;
         }
 
         // Load any resources, such as sprites or sounds
@@ -139,5 +91,75 @@ namespace SlugTemplate
                 room.InGameNoise(new Noise.InGameNoise(pos, 9000f, self, 1f));
             }
         }
+
+        #region slugpup stuff
+
+        private void SlupExplodeOnEat_Hook(On.Player.orig_ObjectEaten orig, Player self, IPlayerEdible edible)
+        {
+            orig(self, edible);
+
+            // Get how much slup likes or dislikes the food
+            SlugNPCAI ai = self.AI;
+            SlugNPCAI.Food foodType = ai.GetFoodType(edible as PhysicalObject);
+            float foodWeight = (foodType != SlugNPCAI.Food.NotCounted) ? ((foodType.Index == -1) ? 0f : Mathf.Abs(ai.foodPreference[foodType.Index])) : 0f;
+
+            // Decide if the slugpup explodes >:3
+            if (Random.value < foodWeight * SLUP_EXPLODE_CHANCE)
+            {
+                // Adapted from Player.Die for slugpups in inv campaign (basically spawns a singularity bomb that instantly explodes)
+                AbstractPhysicalObject abstractPhysicalObject = new AbstractPhysicalObject(
+                    self.abstractCreature.Room.world,
+                    MoreSlugcatsEnums.AbstractObjectType.SingularityBomb,
+                    null,
+                    self.room.GetWorldCoordinate(self.mainBodyChunk.pos),
+                    self.abstractCreature.Room.world.game.GetNewID());
+                self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
+                abstractPhysicalObject.RealizeInRoom();
+                (abstractPhysicalObject.realizedObject as SingularityBomb).Explode();
+            }
+        }
+
+        private void SlupsSpawnInPipes_Hook(On.Player.orig_SpitOutOfShortCut orig, Player self, RWCustom.IntVector2 pos, Room newRoom, bool spitOutAllSticks)
+        {
+            orig(self, pos, newRoom, spitOutAllSticks);
+
+            if (!self.isNPC)
+            {
+                // Create slugpup and spit out of shortcut with player
+                AbstractCreature abstractCreature = new AbstractCreature(newRoom.world, StaticWorld.GetCreatureTemplate(MoreSlugcatsEnums.CreatureTemplateType.SlugNPC), null, self.abstractCreature.pos, newRoom.game.GetNewID());
+                PlayerNPCState state = (abstractCreature.state as PlayerNPCState);
+                state.foodInStomach = 1;
+                newRoom.abstractRoom.AddEntity(abstractCreature);
+                abstractCreature.RealizeInRoom();
+
+                // Make the slugpup like the player (so it will follow)
+                SocialMemory.Relationship rel = state.socialMemory.GetOrInitiateRelationship(self.abstractCreature.ID);
+                rel.InfluenceLike(1f);
+                rel.InfluenceTempLike(1f);
+                SlugNPCAbstractAI abstractAI = (abstractCreature.abstractAI as SlugNPCAbstractAI);
+                abstractAI.isTamed = true;
+                abstractAI.RealAI.friendTracker.friend = self;
+                abstractAI.RealAI.friendTracker.friendRel = rel;
+
+                // Create shockwave
+                newRoom.AddObject(new ShockWave(new Vector2(self.mainBodyChunk.pos.x, self.mainBodyChunk.pos.y), 300f, 0.2f, 15, false));
+            }
+        }
+
+        #endregion
+
+        #region iterator stuff
+
+        private void OracleBehavior_Update(On.OracleBehavior.orig_Update orig, OracleBehavior self, bool eu)
+        {
+            // Five Pebbles closes the game when he realizes you exist
+            orig(self, eu);
+            if (self.oracle?.ID == Oracle.OracleID.SS && self.player != null && self.player.room == self.oracle.room)
+            {
+                Application.Quit();
+            }
+        }
+
+        #endregion
     }
 }
