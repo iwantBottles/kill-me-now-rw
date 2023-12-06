@@ -6,8 +6,8 @@ have fun :hunterglee:
 # what people 'round these parts
 ### coders
 Alduris,
-Hootis
-luna,
+Hootis,
+luna
 ### leditors
 idk
 ### other
