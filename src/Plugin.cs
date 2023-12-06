@@ -55,6 +55,9 @@ namespace SlugTemplate
                 On.Room.Loaded += AddMinorElectricDeath_Hook;
                 new Hook(typeof(ElectricDeath).GetProperty(nameof(ElectricDeath.Intensity))!.GetGetMethod(), ElectricDeath_Intensity_get_Hook);
 
+                // creatures explode like a sinularity when they die
+                On.Creature.Die += Creature_BlackHoleOnDeath;
+
                 Logger.LogMessage("Successfully loaded");
             }
             catch (Exception e)
@@ -227,6 +230,19 @@ namespace SlugTemplate
         private float ElectricDeath_Intensity_get_Hook(Func<ElectricDeath, float> orig, ElectricDeath self)
         {
             return Math.Max((Options?.ElectricHint.Value ?? true) ? MINOR_ELEC_DEATH_AMOUNT : 0f, orig(self));
+        }
+
+        #endregion
+
+        #region creatures singularity on death
+
+        private void Creature_BlackHoleOnDeath(On.Creature.orig_Die orig, Creature self) {
+			AbstractPhysicalObject abstractPhysicalObject = new AbstractPhysicalObject(self.abstractCreature.Room.world, MoreSlugcatsEnums.AbstractObjectType.SingularityBomb, null, self.room.GetWorldCoordinate(self.mainBodyChunk.pos), self.abstractCreature.Room.world.game.GetNewID());
+            self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
+            abstractPhysicalObject.RealizeInRoom();
+			(abstractPhysicalObject.realizedObject as SingularityBomb).Explode();
+			
+			orig(self);
         }
 
         #endregion
