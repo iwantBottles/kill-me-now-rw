@@ -58,6 +58,9 @@ namespace SlugTemplate
                 // creatures explode like a sinularity when they die
                 On.Creature.Die += Creature_BlackHoleOnDeath;
 
+                // Touching neuron flies kills you :monkdevious:
+                On.PhysicalObject.Collide += NeuronFliesKill_Hook;
+
                 Logger.LogMessage("Successfully loaded");
             }
             catch (Exception e)
@@ -238,14 +241,34 @@ namespace SlugTemplate
         #region creatures singularity on death
 
         private void Creature_BlackHoleOnDeath(On.Creature.orig_Die orig, Creature self) {
-			AbstractPhysicalObject abstractPhysicalObject = new AbstractPhysicalObject(self.abstractCreature.Room.world, MoreSlugcatsEnums.AbstractObjectType.SingularityBomb, null, self.room.GetWorldCoordinate(self.mainBodyChunk.pos), self.abstractCreature.Room.world.game.GetNewID());
-            self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
-            abstractPhysicalObject.RealizeInRoom();
-			(abstractPhysicalObject.realizedObject as SingularityBomb).Explode();
+            bool wasAlive = self.State.alive;
+            
+            orig(self);
 			
-			orig(self);
+            if (wasAlive && self is not Fly) // batflies are exempt so you can actually eat them
+            {
+			    AbstractPhysicalObject abstractPhysicalObject = new(self.abstractCreature.Room.world, MoreSlugcatsEnums.AbstractObjectType.SingularityBomb, null, self.room.GetWorldCoordinate(self.mainBodyChunk.pos), self.abstractCreature.Room.world.game.GetNewID());
+                self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
+                abstractPhysicalObject.RealizeInRoom();
+			    (abstractPhysicalObject.realizedObject as SingularityBomb).Explode();
+            }
         }
 
         #endregion
+
+        #region neuron flies kill
+
+        private void NeuronFliesKill_Hook(On.PhysicalObject.orig_Collide orig, PhysicalObject self, PhysicalObject otherObject, int myChunk, int otherChunk)
+        {
+            orig(self, otherObject, myChunk, otherChunk);
+            if (self is OracleSwarmer && self is not NSHSwarmer && otherObject is Player && (otherObject as Player).State.alive && !(otherObject as Player).isNPC)
+            {
+                (otherObject as Player).Die();
+            }
+        }
+
+        #endregion
+
+        //
     }
 }
