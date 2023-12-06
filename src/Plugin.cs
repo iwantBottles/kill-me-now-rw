@@ -18,6 +18,7 @@ namespace SlugTemplate
         private const float MINOR_ELEC_DEATH_AMOUNT = 0.02f; // 50% is where it becomes lethal; don't set it to that
 
         public static RemixMenu Options;
+        public static ManualLogSource logger;
 
         public Plugin()
         {
