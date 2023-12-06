@@ -20,6 +20,8 @@ namespace SlugTemplate
         public static RemixMenu Options;
         public static ManualLogSource logger;
 
+        public static readonly PlayerFeature<bool> ExplodeOnDeath = PlayerBool("slugtemplate/explode_on_death");
+
         public Plugin()
         {
             logger = base.Logger;
@@ -188,16 +190,16 @@ namespace SlugTemplate
 
         #endregion
 
+        #region neuron flies kill
+
         private void NeuronFliesKill_Hook(On.PhysicalObject.orig_Collide orig, PhysicalObject self, PhysicalObject otherObject, int myChunk, int otherChunk)
         {
             orig(self, otherObject, myChunk, otherChunk);
-            if (self is OracleSwarmer && otherObject is Player && !(otherObject as Player).isNPC)
+            if (self is OracleSwarmer && otherObject is Player && (otherObject as Player).State.alive && !(otherObject as Player).isNPC)
             {
                 (otherObject as Player).Die();
             }
         }
-
-        #region neuron flies kill
 
         #endregion
 
