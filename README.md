@@ -5,7 +5,7 @@ have fun :hunterglee:
 
 # what people 'round these parts
 ### coders
-Alduris
+Alduris,
 Hootis
 ### leditors
 idk
