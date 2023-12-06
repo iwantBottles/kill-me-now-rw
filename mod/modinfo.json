@@ -2,7 +2,7 @@
 	"id": "bottles.killmenowrw",
 	"name": "Kill Me Now RW",
 	"version": "0.1.0",
-	"authors": "Bottles, Alduris, Hootis, and others",
+	"authors": "Bottles, Alduris, Hootis, luna, and others",
 	"description": "A stupid mod.",
 	"requirements": [ "moreslugcats", "slime-cubed.slugbase" ],
 	"requirements_names": [ "More Slugcats", "SlugBase" ],
