@@ -1,0 +1,38 @@
+{
+	"id": "Eggy",
+	"name": "eggy",
+	"description": "eg<LINE>bottom text",
+	"features": {
+		"color": "fff6ae",
+		"slugtemplate/super_jump": 0.5,
+		"slugtemplate/explode_on_death": true,
+		
+		"select_menu_scene": "Slugcat_Eggy",
+		"select_menu_scene_ascended": "Ghost_Eggy",
+		"slugtemplate/mean_lizards": 1,
+		"auto_grab_batflies": true,
+		"weight": 0.3,
+		"tunnel_speed": 1.8,
+		"climb_speed": 1.4,
+		"walk_speed": 2,
+		"crouch_stealth": 0.1,
+		"throw_skill": 1,
+		"lung_capacity": 1,
+		"loudness": 1,
+		"alignments": {
+			"Scavengers": { "like": -1, "locked": true }
+		},
+		"can_maul": false,
+		"karma": 9,
+		"the_mark": true,
+		"the_glow": false,
+		"start_room": [ "VS_C03", "CC_CLOG", "CC_A17" ],
+		"has_dreams": false,
+		"cycle_length_min": 6,
+		"cycle_length_max": 8.25,
+		"food_min": 20,
+		"food_max": 20,
+		"world_state": [ "Rivulet", "Red" ],
+		"expedition_enabled": false
+	}
+}
