@@ -6,6 +6,8 @@ using static SlugBase.Features.FeatureTypes;
 using MoreSlugcats;
 using Random = UnityEngine.Random;
 using MonoMod.RuntimeDetour;
+using MonoMod.Cil;
+using Mono.Cecil.Cil;
 using BepInEx.Logging;
 
 namespace SlugTemplate
@@ -16,6 +18,7 @@ namespace SlugTemplate
         private const string MOD_ID = "bottles.killmenowrw";
         private const float SLUP_EXPLODE_CHANCE = 0.1f; // chance to explode when abs(slugpup food pref) = 1
         private const float MINOR_ELEC_DEATH_AMOUNT = 0.02f; // 50% is where it becomes lethal; don't set it to that
+        private const float CENTIPEDE_EXTEND_CHANCE = 0.99f;
 
         public static RemixMenu Options;
         public static ManualLogSource logger;
@@ -60,6 +63,9 @@ namespace SlugTemplate
 
                 // Touching neuron flies kills you :monkdevious:
                 On.PhysicalObject.Collide += NeuronFliesKill_Hook;
+
+                // Centipedes can be as long as they want
+                IL.Centipede.ctor += Centipede_ctor;
 
                 Logger.LogMessage("Successfully loaded");
             }
@@ -245,7 +251,7 @@ namespace SlugTemplate
             
             orig(self);
 			
-            if (wasAlive && self is not Fly) // batflies are exempt so you can actually eat them
+            if (Options.ExplodeOnDeath.Value && wasAlive && self is not Fly) // batflies are exempt so you can actually eat them
             {
 			    AbstractPhysicalObject abstractPhysicalObject = new(self.abstractCreature.Room.world, MoreSlugcatsEnums.AbstractObjectType.SingularityBomb, null, self.room.GetWorldCoordinate(self.mainBodyChunk.pos), self.abstractCreature.Room.world.game.GetNewID());
                 self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
@@ -265,6 +271,40 @@ namespace SlugTemplate
             {
                 (otherObject as Player).Die();
             }
+        }
+
+        #endregion
+
+        #region neuron flies kill
+
+        private void Centipede_ctor(ILContext il)
+        {
+            ILCursor c = new(il);
+            c.GotoNext(x => x.MatchNewarr<BodyChunk>());
+
+            // Emit this
+            c.Emit(OpCodes.Ldarg_0);
+            Instruction newBr = c.Prev;
+
+            // The code that extends the length
+            c.EmitDelegate<Func<Centipede, int>>((c) => {
+                int i = 0;
+                Random.State state = Random.state;
+                Random.InitState(c.abstractCreature.ID.RandomSeed);
+                while (Random.value < CENTIPEDE_EXTEND_CHANCE)
+                {
+                    i++;
+                }
+                Random.state = state;
+                return i;
+            });
+            c.Emit(OpCodes.Add);
+
+            // Fix old break statements so they go to our extend code rather than to the newarr instruction
+            c.GotoPrev(MoveType.Before, x => x.Match(OpCodes.Br_S));
+            c.Next.Operand = newBr;
+            c.GotoPrev(MoveType.Before, x => x.Match(OpCodes.Br_S));
+            c.Next.Operand = newBr;
         }
 
         #endregion

@@ -7,11 +7,13 @@ namespace SlugTemplate
     {
         public readonly Configurable<bool> SlupsSpawnSlups;
         public readonly Configurable<bool> ElectricHint;
+        public readonly Configurable<bool> ExplodeOnDeath;
 
         public RemixMenu(Plugin modInstance)
         {
             SlupsSpawnSlups = config.Bind<bool>("SlupsSpawnSlups", false, new ConfigurableInfo("Whether or not slugpups are prevented from spawning more slugpups. Enabling this will most likely crash your game."));
             ElectricHint = config.Bind<bool>("ElectricHint", true, new ConfigurableInfo("Whether or not electric death is always present, in a minor form during the cycle, by default."));
+            ExplodeOnDeath = config.Bind<bool>("ExplodeOnDeath", true, new ConfigurableInfo("Deetermines if everything explodes when they die."));
         }
 
         public override void Initialize()
@@ -31,7 +33,9 @@ namespace SlugTemplate
                 new OpCheckBox(SlupsSpawnSlups, new(10f, 530f)),
                 new OpLabel(40f, 530f, "Slugpups spawn more slugpups going through pipes"),
                 new OpCheckBox(ElectricHint, new(10f, 500f)),
-                new OpLabel(40f, 500f, "Electric death always present")
+                new OpLabel(40f, 500f, "Electric death always present"),
+                new OpCheckBox(ExplodeOnDeath, new(10f, 470f)),
+                new OpLabel(40f, 470f, "Everything explodes when they die")
             );
         }
     }
