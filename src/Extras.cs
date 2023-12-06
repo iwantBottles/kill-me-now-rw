@@ -1,5 +1,6 @@
 using System;
 using System.Security.Permissions;
+using SlugTemplate;
 using UnityEngine;
 
 /*
@@ -34,7 +35,7 @@ internal static class Extras
             }
             catch (Exception e)
             {
-                Debug.LogException(e);
+                Plugin.logger.LogError(e);
             }
         };
     }

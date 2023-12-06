@@ -6,6 +6,7 @@ using static SlugBase.Features.FeatureTypes;
 using MoreSlugcats;
 using Random = UnityEngine.Random;
 using MonoMod.RuntimeDetour;
+using BepInEx.Logging;
 
 namespace SlugTemplate
 {
@@ -16,31 +17,56 @@ namespace SlugTemplate
         private const float SLUP_EXPLODE_CHANCE = 0.1f; // chance to explode when abs(slugpup food pref) = 1
         private const float MINOR_ELEC_DEATH_AMOUNT = 0.02f; // 50% is where it becomes lethal; don't set it to that
 
+        public static RemixMenu Options;
+        public static ManualLogSource logger;
+
         public static readonly PlayerFeature<float> SuperJump = PlayerFloat("slugtemplate/super_jump");
         public static readonly PlayerFeature<bool> ExplodeOnDeath = PlayerBool("slugtemplate/explode_on_death");
         public static readonly GameFeature<float> MeanLizards = GameFloat("slugtemplate/mean_lizards");
+
+        public Plugin()
+        {
+            logger = base.Logger;
+            Options = new RemixMenu(this);
+        }
 
 
         // Add hooks
         public void OnEnable()
         {
-            On.RainWorld.OnModsInit += Extras.WrapInit(LoadResources);
+            try
+            {
+                On.RainWorld.OnModsInit += Extras.WrapInit(LoadResources);
+                On.RainWorld.OnModsInit += SetUpRemixMenu;
 
-            // Put your custom hooks here!
-            On.Player.Jump += Player_Jump;
-            On.Player.Die += Player_Die;
-            On.Lizard.ctor += Lizard_ctor;
+                // Put your custom hooks here!
+                On.Player.Jump += Player_Jump;
+                On.Player.Die += Player_Die;
+                // On.Lizard.ctor += Lizard_ctor;
 
-            // Slugpup shenanigans :monksilly:
-            On.Player.SpitOutOfShortCut += SlupsSpawnInPipes_Hook;
-            On.Player.ObjectEaten += SlupExplodeOnEat_Hook;
+                // Slugpup shenanigans :monksilly:
+                On.Player.SpitOutOfShortCut += SlupsSpawnInPipes_Hook;
+                On.Player.ObjectEaten += SlupExplodeOnEat_Hook;
 
-            // Iterator related things
-            On.OracleBehavior.Update += OracleBehavior_Update;
+                // Iterator related things
+                On.OracleBehavior.Update += OracleBehavior_Update;
 
-            // Electric death in every room (except shelters) all throughout the cycle, but minor enough that it doesn't kill until actually time to do stuff
-            On.Room.Loaded += AddMinorElectricDeath_Hook;
-            new Hook(typeof(ElectricDeath).GetProperty(nameof(ElectricDeath.Intensity))!.GetGetMethod(), ElectricDeath_Intensity_get_Hook);
+                // Electric death in every room (except shelters) all throughout the cycle, but minor enough that it doesn't kill until actually time to do stuff
+                On.Room.Loaded += AddMinorElectricDeath_Hook;
+                new Hook(typeof(ElectricDeath).GetProperty(nameof(ElectricDeath.Intensity))!.GetGetMethod(), ElectricDeath_Intensity_get_Hook);
+
+                Logger.LogMessage("Successfully loaded");
+            }
+            catch (Exception e)
+            {
+                Logger.LogError("Failed to load!");
+                Logger.LogError(e);
+            }
+        }
+
+        private void SetUpRemixMenu(On.RainWorld.orig_OnModsInit orig, RainWorld self)
+        {
+            MachineConnector.SetRegisteredOI(MOD_ID, Options);
         }
 
         // Load any resources, such as sprites or sounds
@@ -51,7 +77,7 @@ namespace SlugTemplate
         #region slugbase default hooks
 
         // Implement MeanLizards
-        private void Lizard_ctor(On.Lizard.orig_ctor orig, Lizard self, AbstractCreature abstractCreature, World world)
+        /*private void Lizard_ctor(On.Lizard.orig_ctor orig, Lizard self, AbstractCreature abstractCreature, World world)
         {
             orig(self, abstractCreature, world);
 
@@ -59,7 +85,7 @@ namespace SlugTemplate
             {
                 self.spawnDataEvil = Mathf.Min(self.spawnDataEvil, meanness);
             }
-        }
+        }*/
 
 
         // Implement SuperJump
@@ -133,10 +159,10 @@ namespace SlugTemplate
         {
             orig(self, pos, newRoom, spitOutAllSticks);
 
-            if (!self.isNPC)
+            if (!self.isNPC || (Options?.SlupsSpawnSlups.Value ?? false))
             {
                 // Create slugpup and spit out of shortcut with player
-                AbstractCreature abstractCreature = new AbstractCreature(newRoom.world, StaticWorld.GetCreatureTemplate(MoreSlugcatsEnums.CreatureTemplateType.SlugNPC), null, self.abstractCreature.pos, newRoom.game.GetNewID());
+                AbstractCreature abstractCreature = new(newRoom.world, StaticWorld.GetCreatureTemplate(MoreSlugcatsEnums.CreatureTemplateType.SlugNPC), null, self.abstractCreature.pos, newRoom.game.GetNewID());
                 PlayerNPCState state = (abstractCreature.state as PlayerNPCState);
                 state.foodInStomach = 1;
                 newRoom.abstractRoom.AddEntity(abstractCreature);
@@ -199,7 +225,7 @@ namespace SlugTemplate
         
         private float ElectricDeath_Intensity_get_Hook(Func<ElectricDeath, float> orig, ElectricDeath self)
         {
-            return Math.Max(MINOR_ELEC_DEATH_AMOUNT, orig(self));
+            return Math.Max((Options?.ElectricHint.Value ?? true) ? MINOR_ELEC_DEATH_AMOUNT : 0f, orig(self));
         }
 
         #endregion
