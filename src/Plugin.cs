@@ -3,13 +3,15 @@ using BepInEx;
 using UnityEngine;
 using SlugBase.Features;
 using static SlugBase.Features.FeatureTypes;
+using MoreSlugcats;
 
 namespace SlugTemplate
 {
-    [BepInPlugin(MOD_ID, "Slugcat Template", "0.1.0")]
+    [BepInPlugin(MOD_ID, "Kill Me Now RW", "0.1.0")]
     class Plugin : BaseUnityPlugin
     {
-        private const string MOD_ID = "author.slugtemplate";
+        private const string MOD_ID = "bottles.killmenowrw";
+        private const float SLUP_EXPLODE_CHANCE = 0.1f; // chance to explode when abs(slugpup food pref) = 1
 
         public static readonly PlayerFeature<float> SuperJump = PlayerFloat("slugtemplate/super_jump");
         public static readonly PlayerFeature<bool> ExplodeOnDeath = PlayerBool("slugtemplate/explode_on_death");
@@ -25,8 +27,64 @@ namespace SlugTemplate
             On.Player.Jump += Player_Jump;
             On.Player.Die += Player_Die;
             On.Lizard.ctor += Lizard_ctor;
+
+            // Slugpup shenanigans :monksilly:
+            On.Player.SpitOutOfShortCut += SlupsSpawnInPipes_Hook;
+            On.Player.ObjectEaten += Player_ObjectEaten;
         }
-        
+
+        private void Player_ObjectEaten(On.Player.orig_ObjectEaten orig, Player self, IPlayerEdible edible)
+        {
+            orig(self, edible);
+
+            // Get how much slup likes or dislikes the food
+            SlugNPCAI ai = self.AI;
+            SlugNPCAI.Food foodType = ai.GetFoodType(edible as PhysicalObject);
+            float foodWeight = (foodType != SlugNPCAI.Food.NotCounted) ? ((foodType.Index == -1) ? 0f : Mathf.Abs(ai.foodPreference[foodType.Index])) : 0f;
+
+            // Decide if the slugpup explodes >:3
+            if (UnityEngine.Random.value < foodWeight * SLUP_EXPLODE_CHANCE)
+            {
+                // Adapted from Player.Die for slugpups in inv campaign (basically spawns a singularity bomb that instantly explodes)
+                AbstractPhysicalObject abstractPhysicalObject = new AbstractPhysicalObject(
+                    self.abstractCreature.Room.world,
+                    MoreSlugcatsEnums.AbstractObjectType.SingularityBomb,
+                    null,
+                    self.room.GetWorldCoordinate(self.mainBodyChunk.pos),
+                    self.abstractCreature.Room.world.game.GetNewID());
+                self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
+                abstractPhysicalObject.RealizeInRoom();
+                (abstractPhysicalObject.realizedObject as SingularityBomb).Explode();
+            }
+        }
+
+        private void SlupsSpawnInPipes_Hook(On.Player.orig_SpitOutOfShortCut orig, Player self, RWCustom.IntVector2 pos, Room newRoom, bool spitOutAllSticks)
+        {
+            orig(self, pos, newRoom, spitOutAllSticks);
+
+            if (!self.isNPC)
+            {
+                // Create slugpup and spit out of shortcut with player
+                AbstractCreature abstractCreature = new AbstractCreature(newRoom.world, StaticWorld.GetCreatureTemplate(MoreSlugcatsEnums.CreatureTemplateType.SlugNPC), null, self.abstractCreature.pos, newRoom.game.GetNewID());
+                PlayerNPCState state = (abstractCreature.state as PlayerNPCState);
+                state.foodInStomach = 1;
+                newRoom.abstractRoom.AddEntity(abstractCreature);
+                abstractCreature.RealizeInRoom();
+
+                // Make the slugpup like the player (so it will follow)
+                SocialMemory.Relationship rel = state.socialMemory.GetOrInitiateRelationship(self.abstractCreature.ID);
+                rel.InfluenceLike(1f);
+                rel.InfluenceTempLike(1f);
+                SlugNPCAbstractAI abstractAI = (abstractCreature.abstractAI as SlugNPCAbstractAI);
+                abstractAI.isTamed = true;
+                abstractAI.RealAI.friendTracker.friend = self;
+                abstractAI.RealAI.friendTracker.friendRel = rel;
+
+                // Create shockwave
+                newRoom.AddObject(new ShockWave(new Vector2(self.mainBodyChunk.pos.x, self.mainBodyChunk.pos.y), 300f, 0.2f, 15, false));
+            }
+        }
+
         // Load any resources, such as sprites or sounds
         private void LoadResources(RainWorld rainWorld)
         {
