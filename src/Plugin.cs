@@ -42,7 +42,7 @@ namespace SlugTemplate
                 // Put your custom hooks here!
                 On.Player.Jump += Player_Jump;
                 On.Player.Die += Player_Die;
-                // On.Lizard.ctor += Lizard_ctor;
+                On.Lizard.ctor += Lizard_ctor;
 
                 // Slugpup shenanigans :monksilly:
                 On.Player.SpitOutOfShortCut += SlupsSpawnInPipes_Hook;
@@ -66,6 +66,7 @@ namespace SlugTemplate
 
         private void SetUpRemixMenu(On.RainWorld.orig_OnModsInit orig, RainWorld self)
         {
+            orig(self);
             MachineConnector.SetRegisteredOI(MOD_ID, Options);
         }
 
@@ -77,7 +78,7 @@ namespace SlugTemplate
         #region slugbase default hooks
 
         // Implement MeanLizards
-        /*private void Lizard_ctor(On.Lizard.orig_ctor orig, Lizard self, AbstractCreature abstractCreature, World world)
+        private void Lizard_ctor(On.Lizard.orig_ctor orig, Lizard self, AbstractCreature abstractCreature, World world)
         {
             orig(self, abstractCreature, world);
 
@@ -85,7 +86,7 @@ namespace SlugTemplate
             {
                 self.spawnDataEvil = Mathf.Min(self.spawnDataEvil, meanness);
             }
-        }*/
+        }
 
 
         // Implement SuperJump
