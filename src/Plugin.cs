@@ -49,6 +49,9 @@ namespace SlugTemplate
                 // creatures explode like a sinularity when they die
                 On.Creature.Die += Creature_BlackHoleOnDeath;
 
+                // Touching neuron flies kills you :monkdevious:
+                On.PhysicalObject.Collide += NeuronFliesKill_Hook;
+
                 Logger.LogMessage("Successfully loaded");
             }
             catch (Exception e)
@@ -184,5 +187,20 @@ namespace SlugTemplate
         }
 
         #endregion
+
+        private void NeuronFliesKill_Hook(On.PhysicalObject.orig_Collide orig, PhysicalObject self, PhysicalObject otherObject, int myChunk, int otherChunk)
+        {
+            orig(self, otherObject, myChunk, otherChunk);
+            if (self is OracleSwarmer && otherObject is Player && !(otherObject as Player).isNPC)
+            {
+                (otherObject as Player).Die();
+            }
+        }
+
+        #region neuron flies kill
+
+        #endregion
+
+        //
     }
 }
