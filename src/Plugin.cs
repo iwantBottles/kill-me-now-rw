@@ -20,7 +20,7 @@ namespace SlugTemplate
         private const float SLUP_EXPLODE_CHANCE = 0.1f; // chance to explode when abs(slugpup food pref) = 1
         private const float MINOR_ELEC_DEATH_AMOUNT = 0.02f; // 50% is where it becomes lethal; don't set it to that
         private const float CENTIPEDE_EXTEND_CHANCE = 0.99f;
-        private const float LIZARD_EXTEND_CHANCE = 0.8f;
+        private const float LIZARD_EXTEND_CHANCE = 0.99f;
 
         public static RemixMenu Options;
         public static ManualLogSource logger;
@@ -60,15 +60,20 @@ namespace SlugTemplate
                 On.Room.Loaded += AddMinorElectricDeath_Hook;
                 new Hook(typeof(ElectricDeath).GetProperty(nameof(ElectricDeath.Intensity))!.GetGetMethod(), ElectricDeath_Intensity_get_Hook);
 
-                // creatures explode like a sinularity when they die
-                On.Creature.Die += Creature_BlackHoleOnDeath;
+                // creatures explode when they die
+                On.Creature.Die += Creature_ExplodeOnDeath;
 
                 // Touching neuron flies kills you :monkdevious:
                 On.PhysicalObject.Collide += NeuronFliesKill_Hook;
 
                 // Absurdly long creatures
                 IL.Centipede.ctor += LongCentipedes_Hook;
-                IL.Lizard.ctor += LongLizards_Hook;
+
+                IL.Lizard.ctor += LongLizards_Hook1;
+                // todo: hook in Lizard.Update? (line 442)
+                IL.LizardAI.Update += LongLizards_Hook2;
+                IL.LizardGraphics.Update += LongLizards_Hook3;
+                IL.LizardGraphics.UpdateTailSegment += LongLizards_Hook4;
 
                 // Puffball spiders
                 IL.PuffBall.Explode += PuffBall_Explode;
@@ -251,19 +256,45 @@ namespace SlugTemplate
 
         #endregion
 
-        #region creatures singularity on death
+        #region creatures explode on death
 
-        private void Creature_BlackHoleOnDeath(On.Creature.orig_Die orig, Creature self) {
+        private void Creature_ExplodeOnDeath(On.Creature.orig_Die orig, Creature self) {
             bool wasAlive = self.State.alive;
             
             orig(self);
 			
             if (Options.ExplodeOnDeath.Value && wasAlive && self is not Fly && self is not Spider) // batflies are exempt so you can actually eat them : and spiders because shaded citadel would be rubble :-D
             {
-			    AbstractPhysicalObject abstractPhysicalObject = new(self.abstractCreature.Room.world, MoreSlugcatsEnums.AbstractObjectType.SingularityBomb, null, self.room.GetWorldCoordinate(self.mainBodyChunk.pos), self.abstractCreature.Room.world.game.GetNewID());
-                self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
-                abstractPhysicalObject.RealizeInRoom();
-			    (abstractPhysicalObject.realizedObject as SingularityBomb).Explode();
+                if (self is Player && !(self as Player).isNPC)
+                {
+                    AbstractPhysicalObject abstractPhysicalObject = new(self.abstractCreature.Room.world, MoreSlugcatsEnums.AbstractObjectType.SingularityBomb, null, self.room.GetWorldCoordinate(self.mainBodyChunk.pos), self.abstractCreature.Room.world.game.GetNewID());
+                    self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
+                    abstractPhysicalObject.RealizeInRoom();
+			        (abstractPhysicalObject.realizedObject as SingularityBomb).Explode();
+                }
+                else
+                {
+                    Room room = self.room;
+                    Color color = self.ShortCutColor();
+                    Vector2 pos;
+                    for (int i = 0; i < self.bodyChunks.Length; i++)
+                    {
+                        pos = self.bodyChunks[i].pos;
+                        float strength = self.bodyChunks[i].mass;
+
+                        room.AddObject(new Explosion(room, self, pos, 7, strength * 350f, strength * 8f, strength * 2.5f, strength * 400f, 0.25f, self, 0.7f, strength * 225f, 1f));
+                        room.AddObject(new Explosion.ExplosionLight(pos, strength * 350f, 1f, 7, color));
+                        room.AddObject(new Explosion.ExplosionLight(pos, strength * 300f, 1f, 3, Color.white));
+                        room.AddObject(new ExplosionSpikes(room, pos, (int)Mathf.Sqrt(strength * 400f), 30f, 9f, strength * 10f, strength * 250f, color));
+                        room.AddObject(new ShockWave(pos, strength * 475f, 0.045f, 5, false));
+                    }
+
+                    pos = self.mainBodyChunk.pos;
+                    room.ScreenMovement(pos, default, Math.Min(40f, self.TotalMass));
+                    room.PlaySound(SoundID.Bomb_Explode, pos);
+                    room.InGameNoise(new Noise.InGameNoise(pos, 9000f, self, 1f));
+                }
+
             }
         }
 
@@ -314,27 +345,165 @@ namespace SlugTemplate
             c.Next.Operand = newBr;
         }
 
-        private void LongLizards_Hook(ILContext il)
+        private void LongLizards_Hook1(ILContext il)
         {
             ILCursor c = new(il);
 
-            while (c.TryGotoNext(MoveType.After, x => x.MatchLdfld<LizardBreedParams>("bodyLengthFac")))
+            // Find the code that creates the body chunks array
+            c.GotoNext(MoveType.After, x => x.MatchLdcI4(3));
+
+            // Randomly extend the length
+            c.Emit(OpCodes.Ldarg_0);
+            c.EmitDelegate<Func<Lizard, int>>(l => {
+                int i = 0;
+                Random.State state = Random.state;
+                Random.InitState(l.abstractCreature.ID.RandomSeed);
+                while (Random.value < LIZARD_EXTEND_CHANCE)
+                {
+                    i++;
+                }
+                Random.state = state;
+                return i;
+            });
+            c.Emit(OpCodes.Add);
+
+            // Replace some of the things
+            for (int i = 0; i < 3; i++)
             {
-                // The code that extends the length
+                c.GotoNext(MoveType.Before, x => x.MatchLdcR4(3f));
+                c.Remove();
                 c.Emit(OpCodes.Ldarg_0);
-                c.EmitDelegate<Func<Lizard, float>>((c) => {
-                    float i = 0;
-                    Random.State state = Random.state;
-                    Random.InitState(c.abstractCreature.ID.RandomSeed);
-                    while (Random.value < LIZARD_EXTEND_CHANCE)
-                    {
-                        i += Random.value;
-                    }
-                    Random.state = state;
-                    return i;
-                });
-                c.Emit(OpCodes.Add);
+                c.EmitDelegate<Func<Lizard, float>>(l => l.bodyChunks.Length);
             }
+
+            // Add the other body chunks
+            c.GotoNext(MoveType.Before, x => x.MatchLdcI4(3), x => x.MatchNewarr<PhysicalObject.BodyChunkConnection>());
+            c.Emit(OpCodes.Ldarg_0);
+            c.EmitDelegate<Action<Lizard>>(l =>
+            {
+                for (int i = 3; i < l.bodyChunks.Length; i++)
+                {
+                    l.bodyChunks[i] = new BodyChunk(l, i, new Vector2(200f, 500f), 8f * l.lizardParams.bodySizeFac * l.lizardParams.bodyRadFac, l.lizardParams.bodyMass / l.bodyChunks.Length);
+                }
+            });
+
+            // Okay body chunk connections time
+            c.Remove();
+            c.Emit(OpCodes.Ldarg_0);
+            c.EmitDelegate<Func<Lizard, int>>(l => l.bodyChunks.Length * 2 - 3);
+
+            // Add the other chunks
+            c.GotoNext(MoveType.Before, x => x.MatchLdarg(0), x => x.MatchLdsfld<Lizard.Animation>("Standard"));
+            c.Emit(OpCodes.Ldarg_0);
+            c.EmitDelegate<Action<Lizard>>(l =>
+            {
+                int j = 3;
+                for (int i = 3; i < l.bodyChunks.Length; i++, j += 2)
+                {
+                    l.bodyChunkConnections[j] = new PhysicalObject.BodyChunkConnection(l.bodyChunks[i - 1], l.bodyChunks[i], 17f * l.lizardParams.bodyLengthFac * ((l.lizardParams.bodySizeFac + 1f) / 2f), PhysicalObject.BodyChunkConnection.Type.Normal, 0.95f, 0.5f);
+                    l.bodyChunkConnections[j + 1] = new PhysicalObject.BodyChunkConnection(l.bodyChunks[i - 2], l.bodyChunks[i], 17f * l.lizardParams.bodyLengthFac * ((l.lizardParams.bodySizeFac + 1f) / 2f) * (1f + l.lizardParams.bodyStiffnes), PhysicalObject.BodyChunkConnection.Type.Push, 1f - Mathf.Lerp(0.9f, 0.5f, l.lizardParams.bodyStiffnes), 0.5f);
+                }
+            });
+        }
+
+        private void LongLizards_Hook2(ILContext il)
+        {
+            // Fix some issues related to hardcoding lizard chunks n stuff
+            ILCursor c = new(il);
+            ILLabel brFalse, brTrue;
+
+            // Something about swimming
+            try
+            {
+                c.GotoNext(x => x.MatchCall<LizardAI>("get_lizard"), x => x.MatchCallvirt<PhysicalObject>("get_bodyChunks"), x => x.MatchLdcI4(2));
+                c.GotoPrev(MoveType.Before, x => x.Match(OpCodes.Bgt_S));
+                brTrue = c.Next.Operand as ILLabel;
+                c.GotoNext(MoveType.After, x => x.Match(OpCodes.Ble_Un_S));
+                brFalse = c.Prev.Operand as ILLabel;
+                c.Prev.Operand = brTrue;
+
+                c.Emit(OpCodes.Ldarg_0);
+                c.EmitDelegate<Func<LizardAI, bool>>(l =>
+                {
+                    for (int i = 3; i < l.lizard.bodyChunks.Length; i++)
+                    {
+                        if (l.lizard.bodyChunks[1].vel.magnitude > 2f)
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+                c.Emit(OpCodes.Brfalse, brFalse);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogDebug("Swim thingy failed");
+                Logger.LogDebug(ex);
+                return;
+            }
+
+            // Something about being on the ground
+            try
+            {
+                for (int i = 0; i < 3; i++) c.GotoNext(x => x.MatchCallvirt<PhysicalObject>("IsTileSolid"));
+                c.GotoNext(MoveType.After, x => x.Match(OpCodes.Brfalse_S));
+                brFalse = c.Prev.Operand as ILLabel;
+
+                c.Emit(OpCodes.Ldarg_0);
+                c.EmitDelegate<Func<LizardAI, bool>>(l =>
+                {
+                    for (int i = 3; i < l.lizard.bodyChunks.Length; i++)
+                    {
+                        if (l.lizard.IsTileSolid(i, 0, -1))
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+                c.Emit(OpCodes.Brfalse, brFalse);
+
+                c.GotoNext(MoveType.Before, x => x.Match(OpCodes.Blt_S));
+                c.Index--;
+                c.Remove();
+                c.Emit(OpCodes.Ldarg_0);
+                c.EmitDelegate<Func<LizardAI, int>>(l => l.lizard.bodyChunks.Length);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogDebug("Ground thingy failed");
+                Logger.LogDebug(ex);
+                return;
+            }
+
+        }
+
+        private void LongLizards_Hook3(ILContext il)
+        {
+            ILCursor c = new(il);
+
+            c.GotoNext(MoveType.Before, x => x.MatchLdcI4(3), x => x.Match(OpCodes.Blt));
+            c.Remove();
+            c.Emit(OpCodes.Ldarg_0);
+            c.EmitDelegate<Func<LizardGraphics, int>>(l => l.lizard.bodyChunks.Length);
+
+            /*for (int i = 0; i < 4; i++)
+            {
+                c.GotoPrev(MoveType.Before, x => x.MatchLdcR4(3f));
+                c.Remove();
+                c.Emit(OpCodes.Ldarg_0);
+                c.EmitDelegate<Func<LizardGraphics, float>>(l => l.lizard.bodyChunks.Length);
+            }*/
+        }
+
+        private void LongLizards_Hook4(ILContext il)
+        {
+            ILCursor c = new(il);
+            c.GotoNext(MoveType.After, x => x.MatchCallvirt<PhysicalObject>("get_bodyChunks"));
+            c.Remove();
+            c.Emit(OpCodes.Ldarg_0);
+            c.EmitDelegate<Func<LizardGraphics, int>>(l => l.lizard.bodyChunks.Length - 1);
         }
 
         #endregion
