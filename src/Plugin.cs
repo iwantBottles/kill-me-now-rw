@@ -21,6 +21,7 @@ namespace SlugTemplate
         private const float MINOR_ELEC_DEATH_AMOUNT = 0.02f; // 50% is where it becomes lethal; don't set it to that
         private const float CENTIPEDE_EXTEND_CHANCE = 0.99f;
         private const float LIZARD_EXTEND_CHANCE = 0.99f;
+        private const bool ENABLE_EXTENDED_LIZARDS = false;
 
         public static RemixMenu Options;
         public static ManualLogSource logger;
@@ -69,14 +70,20 @@ namespace SlugTemplate
                 // Absurdly long creatures
                 IL.Centipede.ctor += LongCentipedes_Hook;
 
-                IL.Lizard.ctor += LongLizards_Hook1;
-                // todo: hook in Lizard.Update? (line 442)
-                IL.LizardAI.Update += LongLizards_Hook2;
-                IL.LizardGraphics.Update += LongLizards_Hook3;
-                IL.LizardGraphics.UpdateTailSegment += LongLizards_Hook4;
+                if (ENABLE_EXTENDED_LIZARDS)
+                {
+                    // Sometimes it's just nice not to have them be scuffed
+                    IL.Lizard.ctor += LongLizards_Hook1;
+                    IL.LizardAI.Update += LongLizards_Hook2;
+                    IL.LizardGraphics.Update += LongLizards_Hook3;
+                    IL.LizardGraphics.UpdateTailSegment += LongLizards_Hook4;
+                }
 
                 // Puffball spiders
                 IL.PuffBall.Explode += PuffBall_Explode;
+
+                // Everything is hungry
+                IL.StaticWorld.InitStaticWorld += StaticWorld_InitStaticWorld;
 
                 Logger.LogMessage("Successfully loaded");
             }
@@ -549,6 +556,22 @@ namespace SlugTemplate
         }
 
         #endregion
-        //
+
+        #region everything hates everything else
+
+        private void StaticWorld_InitStaticWorld(ILContext il)
+        {
+            ILCursor c = new(il);
+
+            while (c.TryGotoNext(MoveType.Before, x => x.Match(OpCodes.Ldsfld), x => x.MatchLdcR4(out _), x => x.MatchNewobj<CreatureTemplate.Relationship>()))
+            {
+                c.Remove();
+                c.EmitDelegate(() => CreatureTemplate.Relationship.Type.Eats);
+                c.Index += 2;
+            }
+        }
+
+        #endregion
+
     }
 }
