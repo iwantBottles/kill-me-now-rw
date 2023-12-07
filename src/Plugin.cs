@@ -23,7 +23,8 @@ namespace SlugTemplate
         private const float CENTIPEDE_EXTEND_CHANCE = 0.99f;
         private const float LIZARD_EXTEND_CHANCE = 0.99f;
         private const bool ENABLE_EXTENDED_LIZARDS = false;
-        private const float VULTUREGRUB_SUMMON_RANDOM_CHANCE = 0.95f;
+        private const float VULTUREGRUB_SUMMON_RANDOM_CHANCE = 0.88f;
+        private const int GRUB_LIMIT = 35;
 
         public static RemixMenu Options;
         public static ManualLogSource logger;
@@ -587,7 +588,16 @@ namespace SlugTemplate
             cursor.EmitDelegate((VultureGrub self, AbstractCreature abstractCreature) =>
             {
                 Debug.Log("calling friends");
-                for (int j = 0; j < 12; j++)
+                // check amount of grubs in room
+                int grubCount = 0;
+                for (int i = 0; i < self.room.abstractRoom.creatures.Count; i++)
+                {
+                    if (self.room.abstractRoom.creatures[i].realizedCreature is VultureGrub && !self.room.abstractRoom.creatures[i].realizedCreature.dead)
+                    {
+                        grubCount++;
+                    }
+                }
+                for (int j = 0; j < Random.Range(2, 10); j++)
                 {
                     if (Random.value > VULTUREGRUB_SUMMON_RANDOM_CHANCE)
                     {
@@ -620,9 +630,13 @@ namespace SlugTemplate
                     }
                     else
                     {
-                        abstractCreature = new AbstractCreature(self.room.world, StaticWorld.GetCreatureTemplate(CreatureTemplate.Type.VultureGrub), null, self.room.GetWorldCoordinate(self.skyPosition.Value + new IntVector2(0, 350)), self.room.game.GetNewID());
-                        self.room.abstractRoom.AddEntity(abstractCreature);
-                        abstractCreature.RealizeInRoom();
+                        // if too many grubs, dont.
+                        if (grubCount < GRUB_LIMIT)
+                        {
+                            abstractCreature = new AbstractCreature(self.room.world, StaticWorld.GetCreatureTemplate(CreatureTemplate.Type.VultureGrub), null, self.room.GetWorldCoordinate(self.skyPosition.Value + new IntVector2(0, 350)), self.room.game.GetNewID());
+                            self.room.abstractRoom.AddEntity(abstractCreature);
+                            abstractCreature.RealizeInRoom();
+                        }
                     }
 
                 }
@@ -646,7 +660,10 @@ namespace SlugTemplate
         {
             CreatureTemplate.Type[] typeArray = { CreatureTemplate.Type.Scavenger, CreatureTemplate.Type.Snail, CreatureTemplate.Type.Deer, CreatureTemplate.Type.DropBug,
                 CreatureTemplate.Type.EggBug, CreatureTemplate.Type.JetFish, CreatureTemplate.Type.Hazer, CreatureTemplate.Type.MirosBird,
-            CreatureTemplate.Type.RedCentipede, CreatureTemplate.Type.Centipede, MoreSlugcatsEnums.CreatureTemplateType.SlugNPC, MoreSlugcatsEnums.CreatureTemplateType.Yeek};
+            CreatureTemplate.Type.RedCentipede, CreatureTemplate.Type.Centipede, CreatureTemplate.Type.BlueLizard, CreatureTemplate.Type.GreenLizard,
+            CreatureTemplate.Type.RedLizard, CreatureTemplate.Type.PinkLizard, CreatureTemplate.Type.WhiteLizard, CreatureTemplate.Type.CyanLizard,
+                CreatureTemplate.Type.YellowLizard, MoreSlugcatsEnums.CreatureTemplateType.SpitLizard, MoreSlugcatsEnums.CreatureTemplateType.SlugNPC,
+                MoreSlugcatsEnums.CreatureTemplateType.Yeek};
             return typeArray[Random.Range(0, typeArray.Length)];
         }
         #endregion
