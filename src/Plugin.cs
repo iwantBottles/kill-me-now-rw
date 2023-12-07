@@ -19,6 +19,7 @@ namespace SlugTemplate
         private const float SLUP_EXPLODE_CHANCE = 0.1f; // chance to explode when abs(slugpup food pref) = 1
         private const float MINOR_ELEC_DEATH_AMOUNT = 0.02f; // 50% is where it becomes lethal; don't set it to that
         private const float CENTIPEDE_EXTEND_CHANCE = 0.99f;
+        private const float LIZARD_EXTEND_CHANCE = 0.8f;
 
         public static RemixMenu Options;
         public static ManualLogSource logger;
@@ -64,8 +65,9 @@ namespace SlugTemplate
                 // Touching neuron flies kills you :monkdevious:
                 On.PhysicalObject.Collide += NeuronFliesKill_Hook;
 
-                // Centipedes can be as long as they want
-                IL.Centipede.ctor += Centipede_ctor;
+                // Absurdly long creatures
+                IL.Centipede.ctor += LongCentipedes_Hook;
+                IL.Lizard.ctor += LongLizards_Hook;
 
                 Logger.LogMessage("Successfully loaded");
             }
@@ -275,9 +277,9 @@ namespace SlugTemplate
 
         #endregion
 
-        #region neuron flies kill
+        #region absurdly long creatures
 
-        private void Centipede_ctor(ILContext il)
+        private void LongCentipedes_Hook(ILContext il)
         {
             ILCursor c = new(il);
             c.GotoNext(x => x.MatchNewarr<BodyChunk>());
@@ -305,6 +307,29 @@ namespace SlugTemplate
             c.Next.Operand = newBr;
             c.GotoPrev(MoveType.Before, x => x.Match(OpCodes.Br_S));
             c.Next.Operand = newBr;
+        }
+
+        private void LongLizards_Hook(ILContext il)
+        {
+            ILCursor c = new(il);
+
+            while (c.TryGotoNext(MoveType.After, x => x.MatchLdfld<LizardBreedParams>("bodyLengthFac")))
+            {
+                // The code that extends the length
+                c.Emit(OpCodes.Ldarg_0);
+                c.EmitDelegate<Func<Lizard, float>>((c) => {
+                    float i = 0;
+                    Random.State state = Random.state;
+                    Random.InitState(c.abstractCreature.ID.RandomSeed);
+                    while (Random.value < LIZARD_EXTEND_CHANCE)
+                    {
+                        i += Random.value;
+                    }
+                    Random.state = state;
+                    return i;
+                });
+                c.Emit(OpCodes.Add);
+            }
         }
 
         #endregion
