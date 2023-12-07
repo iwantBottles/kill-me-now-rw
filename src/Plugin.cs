@@ -84,6 +84,9 @@ namespace SlugTemplate
                 // Puffball spiders
                 IL.PuffBall.Explode += PuffBall_Explode;
 
+                // VultureGrub summoning
+                IL.VultureGrub.AttemptCallVulture += VultureGrub_AttemptCallVulture;
+
                 // Everything is hungry
                 IL.StaticWorld.InitStaticWorld += StaticWorld_InitStaticWorld;
 
