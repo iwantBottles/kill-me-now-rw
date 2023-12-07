@@ -4,6 +4,7 @@ using UnityEngine;
 using SlugBase.Features;
 using static SlugBase.Features.FeatureTypes;
 using MoreSlugcats;
+using RWCustom;
 using Random = UnityEngine.Random;
 using MonoMod.RuntimeDetour;
 using MonoMod.Cil;
@@ -69,6 +70,9 @@ namespace SlugTemplate
                 IL.Centipede.ctor += LongCentipedes_Hook;
                 IL.Lizard.ctor += LongLizards_Hook;
 
+                // Puffball spiders
+                IL.PuffBall.Explode += PuffBall_Explode;
+
                 Logger.LogMessage("Successfully loaded");
             }
             catch (Exception e)
@@ -77,6 +81,7 @@ namespace SlugTemplate
                 Logger.LogError(e);
             }
         }
+
 
         private void SetUpRemixMenu(On.RainWorld.orig_OnModsInit orig, RainWorld self)
         {
@@ -253,7 +258,7 @@ namespace SlugTemplate
             
             orig(self);
 			
-            if (Options.ExplodeOnDeath.Value && wasAlive && self is not Fly) // batflies are exempt so you can actually eat them
+            if (Options.ExplodeOnDeath.Value && wasAlive && self is not Fly && self is not Spider) // batflies are exempt so you can actually eat them : and spiders because shaded citadel would be rubble :-D
             {
 			    AbstractPhysicalObject abstractPhysicalObject = new(self.abstractCreature.Room.world, MoreSlugcatsEnums.AbstractObjectType.SingularityBomb, null, self.room.GetWorldCoordinate(self.mainBodyChunk.pos), self.abstractCreature.Room.world.game.GetNewID());
                 self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
@@ -334,6 +339,42 @@ namespace SlugTemplate
 
         #endregion
 
+        #region puffball arachnophobia moment
+        private void PuffBall_Explode(ILContext il)
+        {
+            ILCursor cursor = new(il);
+            ILCursor skipCursor = new(il);
+
+            skipCursor.GotoNext(MoveType.Before, x => x.MatchLdloc(2), x => x.MatchLdcI4(1));
+            ILLabel skipLabel = il.DefineLabel();
+            skipCursor.MarkLabel(skipLabel);
+
+            cursor.GotoNext(MoveType.After, x => x.MatchStloc(2), x => x.Match(OpCodes.Br_S), x => x.MatchLdarg(0));
+
+            cursor.Emit(OpCodes.Ldloc_2);
+            cursor.Emit(OpCodes.Ldloc_0);
+            cursor.EmitDelegate((PuffBall self, int j, InsectCoordinator smallInsects) =>
+            {
+                SporeCloud sporecloud = new(self.firstChunk.pos, Custom.RNV() * Random.value * 10f, self.sporeColor, 1f, (self.thrownBy != null) ? self.thrownBy.abstractCreature : null, j % 20, smallInsects)
+                {
+                    nonToxic = true
+                };
+                self.room.AddObject(sporecloud);
+                Random.InitState(self.abstractPhysicalObject.ID.RandomSeed);
+                if (j < (int)Random.Range(20f, 70f))
+                {
+                    Vector2 pos = self.firstChunk.pos;
+                    AbstractCreature abstractCreature = new AbstractCreature(self.room.world, StaticWorld.GetCreatureTemplate(CreatureTemplate.Type.Spider), null, self.room.GetWorldCoordinate(pos), self.room.world.game.GetNewID());
+                    self.room.abstractRoom.AddEntity(abstractCreature);
+                    abstractCreature.RealizeInRoom();
+                    (abstractCreature.realizedCreature as Spider).bloodLust = 1f;
+                }
+            });
+            cursor.Emit(OpCodes.Br_S, skipLabel);
+            cursor.Emit(OpCodes.Ldloc_0);
+        }
+
+        #endregion
         //
     }
 }
