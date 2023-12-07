@@ -6,6 +6,7 @@ using static SlugBase.Features.FeatureTypes;
 using MoreSlugcats;
 using RWCustom;
 using Random = UnityEngine.Random;
+using Debug = UnityEngine.Debug;
 using MonoMod.RuntimeDetour;
 using MonoMod.Cil;
 using Mono.Cecil.Cil;
@@ -21,6 +22,7 @@ namespace SlugTemplate
         private const float MINOR_ELEC_DEATH_AMOUNT = 0.02f; // 50% is where it becomes lethal; don't set it to that
         private const float CENTIPEDE_EXTEND_CHANCE = 0.99f;
         private const float LIZARD_EXTEND_CHANCE = 0.99f;
+        private const float VULTUREGRUB_SUMMON_RANDOM_CHANCE = 0.95f;
 
         public static RemixMenu Options;
         public static ManualLogSource logger;
@@ -77,6 +79,9 @@ namespace SlugTemplate
 
                 // Puffball spiders
                 IL.PuffBall.Explode += PuffBall_Explode;
+
+                // Vulture grub summoning
+                IL.VultureGrub.AttemptCallVulture += VultureGrub_AttemptCallVulture;
 
                 Logger.LogMessage("Successfully loaded");
             }
@@ -536,6 +541,8 @@ namespace SlugTemplate
                 if (j < (int)Random.Range(20f, 50f))
                 {
                     // i wanna make them explode out more
+
+                    // stolen from momma spider 
                     Vector2 pos = self.firstChunk.pos;
                     AbstractCreature abstractCreature = new AbstractCreature(self.room.world, StaticWorld.GetCreatureTemplate(CreatureTemplate.Type.Spider), null, self.room.GetWorldCoordinate(pos), self.room.world.game.GetNewID());
                     self.room.abstractRoom.AddEntity(abstractCreature);
@@ -548,6 +555,93 @@ namespace SlugTemplate
             cursor.Emit(OpCodes.Ldloc_0);
         }
 
+        #endregion
+
+        #region vulture grub party
+        private void VultureGrub_AttemptCallVulture(ILContext il) // todo, make this less bad.
+        {
+            ILCursor cursor = new(il);
+            ILCursor skipCursor = new(il);
+            ILCursor changeLabel = new(il);
+
+            // skip the entire method basically
+            skipCursor.GotoNext(MoveType.Before, x => x.MatchLdarg(0), x => x.MatchLdcI4(1), x => x.MatchStfld<VultureGrub>(nameof(VultureGrub.callingMode)));
+            ILLabel skipLabel = il.DefineLabel();
+            skipCursor.MarkLabel(skipLabel);
+
+            // summon grubs or creatures
+            cursor.GotoNext(x => x.MatchStloc(1));
+            cursor.GotoNext(MoveType.After, x => x.MatchStloc(1));
+
+            ILLabel label = il.DefineLabel();
+            cursor.MarkLabel(label);
+            cursor.Emit(OpCodes.Ldarg_0);
+            cursor.Emit(OpCodes.Ldloc_0);
+            cursor.EmitDelegate((VultureGrub self, AbstractCreature abstractCreature) =>
+            {
+                Debug.Log("calling friends");
+                for (int j = 0; j < 12; j++)
+                {
+                    if (Random.value > VULTUREGRUB_SUMMON_RANDOM_CHANCE)
+                    {
+                        abstractCreature = new AbstractCreature(self.room.world, StaticWorld.GetCreatureTemplate(RandomCreatureType()), null, new WorldCoordinate(self.room.world.offScreenDen.index, -1, -1, 0), self.room.game.GetNewID());
+                        self.room.world.offScreenDen.AddEntity(abstractCreature);
+                        int num = int.MaxValue;
+                        int num2 = -1;
+                        for (int k = 0; k < self.room.borderExits.Length; k++)
+                        {
+                            if (!(self.room.borderExits[k].type == AbstractRoomNode.Type.SkyExit))
+                            {
+                                continue;
+                            }
+
+                            for (int l = 0; l < self.room.borderExits[k].borderTiles.Length; l++)
+                            {
+                                if (Custom.ManhattanDistance(self.room.borderExits[k].borderTiles[l], self.skyPosition.Value) < num)
+                                {
+                                    num = Custom.ManhattanDistance(self.room.borderExits[k].borderTiles[l], self.skyPosition.Value);
+                                    num2 = k + self.room.exitAndDenIndex.Length;
+                                }
+                            }
+                        }
+
+                        if (num2 < 0)
+                        {
+                            continue;
+                        }
+                        abstractCreature.Move(new WorldCoordinate(self.room.abstractRoom.index, -1, -1, num2));
+                    }
+                    else
+                    {
+                        abstractCreature = new AbstractCreature(self.room.world, StaticWorld.GetCreatureTemplate(CreatureTemplate.Type.VultureGrub), null, self.room.GetWorldCoordinate(self.skyPosition.Value + new IntVector2(0, 350)), self.room.game.GetNewID());
+                        self.room.abstractRoom.AddEntity(abstractCreature);
+                        abstractCreature.RealizeInRoom();
+                    }
+
+                }
+                self.sandboxVulture = false;
+            });
+            // break to skip
+            cursor.Emit(OpCodes.Br_S, skipLabel);
+
+            // change labels of previous opcodes to match emitted opcode
+            changeLabel.GotoNext(x => x.MatchRet());
+            changeLabel.GotoNext(x => x.Match(OpCodes.Brfalse_S));
+            changeLabel.Next.Operand = label;
+            changeLabel.GotoNext(x => x.Match(OpCodes.Brfalse_S));
+            changeLabel.Next.Operand = label;
+            changeLabel.GotoNext(x => x.Match(OpCodes.Brfalse_S));
+            changeLabel.GotoNext(x => x.Match(OpCodes.Brfalse_S));
+            changeLabel.Next.Operand = label;
+        }
+
+        private CreatureTemplate.Type RandomCreatureType()
+        {
+            CreatureTemplate.Type[] typeArray = { CreatureTemplate.Type.Scavenger, CreatureTemplate.Type.Snail, CreatureTemplate.Type.Deer, CreatureTemplate.Type.DropBug,
+                CreatureTemplate.Type.EggBug, CreatureTemplate.Type.JetFish, CreatureTemplate.Type.Hazer, CreatureTemplate.Type.MirosBird,
+            CreatureTemplate.Type.RedCentipede, CreatureTemplate.Type.Centipede, MoreSlugcatsEnums.CreatureTemplateType.SlugNPC, MoreSlugcatsEnums.CreatureTemplateType.Yeek};
+            return typeArray[Random.Range(0, typeArray.Length)];
+        }
         #endregion
         //
     }
