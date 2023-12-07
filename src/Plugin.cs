@@ -263,7 +263,7 @@ namespace SlugTemplate
             
             orig(self);
 			
-            if (Options.ExplodeOnDeath.Value && wasAlive && self is not Fly && self is not Spider) // batflies are exempt so you can actually eat them : and spiders because shaded citadel would be rubble :-D
+            if (Options.ExplodeOnDeath.Value && wasAlive && self is not Fly) // batflies are exempt so you can actually eat them
             {
                 if (self is Player && !(self as Player).isNPC)
                 {
@@ -533,7 +533,7 @@ namespace SlugTemplate
                 };
                 self.room.AddObject(sporecloud);
                 Random.InitState(self.abstractPhysicalObject.ID.RandomSeed);
-                if (j < (int)Random.Range(20f, 70f))
+                if (j < (int)Random.Range(20f, 50f))
                 {
                     // i wanna make them explode out more
                     Vector2 pos = self.firstChunk.pos;
