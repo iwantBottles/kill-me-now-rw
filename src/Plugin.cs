@@ -59,8 +59,8 @@ namespace SlugTemplate
                 On.Room.Loaded += AddMinorElectricDeath_Hook;
                 new Hook(typeof(ElectricDeath).GetProperty(nameof(ElectricDeath.Intensity))!.GetGetMethod(), ElectricDeath_Intensity_get_Hook);
 
-                // creatures explode like a sinularity when they die
-                On.Creature.Die += Creature_BlackHoleOnDeath;
+                // creatures explode when they die
+                On.Creature.Die += Creature_ExplodeOnDeath;
 
                 // Touching neuron flies kills you :monkdevious:
                 On.PhysicalObject.Collide += NeuronFliesKill_Hook;
@@ -251,19 +251,45 @@ namespace SlugTemplate
 
         #endregion
 
-        #region creatures singularity on death
+        #region creatures explode on death
 
-        private void Creature_BlackHoleOnDeath(On.Creature.orig_Die orig, Creature self) {
+        private void Creature_ExplodeOnDeath(On.Creature.orig_Die orig, Creature self) {
             bool wasAlive = self.State.alive;
             
             orig(self);
 			
             if (Options.ExplodeOnDeath.Value && wasAlive && self is not Fly) // batflies are exempt so you can actually eat them
             {
-			    AbstractPhysicalObject abstractPhysicalObject = new(self.abstractCreature.Room.world, MoreSlugcatsEnums.AbstractObjectType.SingularityBomb, null, self.room.GetWorldCoordinate(self.mainBodyChunk.pos), self.abstractCreature.Room.world.game.GetNewID());
-                self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
-                abstractPhysicalObject.RealizeInRoom();
-			    (abstractPhysicalObject.realizedObject as SingularityBomb).Explode();
+                if (self is Player && !(self as Player).isNPC)
+                {
+                    AbstractPhysicalObject abstractPhysicalObject = new(self.abstractCreature.Room.world, MoreSlugcatsEnums.AbstractObjectType.SingularityBomb, null, self.room.GetWorldCoordinate(self.mainBodyChunk.pos), self.abstractCreature.Room.world.game.GetNewID());
+                    self.abstractCreature.Room.AddEntity(abstractPhysicalObject);
+                    abstractPhysicalObject.RealizeInRoom();
+			        (abstractPhysicalObject.realizedObject as SingularityBomb).Explode();
+                }
+                else
+                {
+                    Room room = self.room;
+                    Color color = self.ShortCutColor();
+                    Vector2 pos;
+                    for (int i = 0; i < self.bodyChunks.Length; i++)
+                    {
+                        pos = self.bodyChunks[i].pos;
+                        float strength = self.bodyChunks[i].mass;
+
+                        room.AddObject(new Explosion(room, self, pos, 7, strength * 350f, strength * 8f, strength * 2.5f, strength * 400f, 0.25f, self, 0.7f, strength * 225f, 1f));
+                        room.AddObject(new Explosion.ExplosionLight(pos, strength * 350f, 1f, 7, color));
+                        room.AddObject(new Explosion.ExplosionLight(pos, strength * 300f, 1f, 3, Color.white));
+                        room.AddObject(new ExplosionSpikes(room, pos, (int)Mathf.Sqrt(strength * 400f), 30f, 9f, strength * 10f, strength * 250f, color));
+                        room.AddObject(new ShockWave(pos, strength * 475f, 0.045f, 5, false));
+                    }
+
+                    pos = self.mainBodyChunk.pos;
+                    room.ScreenMovement(pos, default, Math.Min(40f, self.TotalMass));
+                    room.PlaySound(SoundID.Bomb_Explode, pos);
+                    room.InGameNoise(new Noise.InGameNoise(pos, 9000f, self, 1f));
+                }
+
             }
         }
 
