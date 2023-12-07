@@ -514,12 +514,15 @@ namespace SlugTemplate
             ILCursor cursor = new(il);
             ILCursor skipCursor = new(il);
 
+            // goto the end of the for loop and mark label
             skipCursor.GotoNext(MoveType.Before, x => x.MatchLdloc(2), x => x.MatchLdcI4(1));
             ILLabel skipLabel = il.DefineLabel();
             skipCursor.MarkLabel(skipLabel);
 
+            // goto just before sporecloud creation
             cursor.GotoNext(MoveType.After, x => x.MatchStloc(2), x => x.Match(OpCodes.Br_S), x => x.MatchLdarg(0));
 
+            // make my own sporecloud and add spiders
             cursor.Emit(OpCodes.Ldloc_2);
             cursor.Emit(OpCodes.Ldloc_0);
             cursor.EmitDelegate((PuffBall self, int j, InsectCoordinator smallInsects) =>
@@ -532,6 +535,7 @@ namespace SlugTemplate
                 Random.InitState(self.abstractPhysicalObject.ID.RandomSeed);
                 if (j < (int)Random.Range(20f, 70f))
                 {
+                    // i wanna make them explode out more
                     Vector2 pos = self.firstChunk.pos;
                     AbstractCreature abstractCreature = new AbstractCreature(self.room.world, StaticWorld.GetCreatureTemplate(CreatureTemplate.Type.Spider), null, self.room.GetWorldCoordinate(pos), self.room.world.game.GetNewID());
                     self.room.abstractRoom.AddEntity(abstractCreature);
@@ -539,6 +543,7 @@ namespace SlugTemplate
                     (abstractCreature.realizedCreature as Spider).bloodLust = 1f;
                 }
             });
+            // skip past original sporecloud creation
             cursor.Emit(OpCodes.Br_S, skipLabel);
             cursor.Emit(OpCodes.Ldloc_0);
         }
