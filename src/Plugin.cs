@@ -592,7 +592,7 @@ namespace SlugTemplate
                 int grubCount = 0;
                 for (int i = 0; i < self.room.abstractRoom.creatures.Count; i++)
                 {
-                    if (self.room.abstractRoom.creatures[i].realizedCreature is VultureGrub && !self.room.abstractRoom.creatures[i].realizedCreature.dead)
+                    if (self.room.abstractRoom.creatures[i].realizedCreature is VultureGrub)
                     {
                         grubCount++;
                     }
